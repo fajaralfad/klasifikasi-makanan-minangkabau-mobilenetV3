@@ -13,10 +13,14 @@ class MinangFoodClassifier:
         self.input_details = None
         self.output_details = None
         self.is_loaded = False
-        self.load_model()
+       
+        logger.info("MinangFoodClassifier initialized (model will be loaded on first request)")
     
     def load_model(self):
-        """Load TFLite model"""
+        """Load TFLite model (lazy loading)"""
+        if self.is_loaded:
+            return  # Model sudah loaded, skip
+            
         try:
             logger.info(f"Loading TFLite model from: {settings.MODEL_PATH}")
             
@@ -36,6 +40,7 @@ class MinangFoodClassifier:
         except Exception as e:
             logger.error(f"Failed to load TFLite model: {e}")
             self.is_loaded = False
+            raise e
     
     def preprocess_image(self, image_bytes):
         """Preprocess image for TFLite model"""
@@ -66,11 +71,16 @@ class MinangFoodClassifier:
     
     def predict(self, image_bytes):
         """Make prediction menggunakan TFLite"""
+        # Load model on first predict call (lazy loading)
         if not self.is_loaded:
-            return {
-                "error": "Model not loaded",
-                "success": False
-            }
+            logger.info("Model not loaded yet, loading now...")
+            try:
+                self.load_model()
+            except Exception as e:
+                return {
+                    "error": f"Failed to load model: {str(e)}",
+                    "success": False
+                }
         
         try:
             # Preprocess image
@@ -121,13 +131,5 @@ class MinangFoodClassifier:
                 "success": False
             }
 
-# Global TFLite model instance
-try:
-    classifier = MinangFoodClassifier()
-    if not classifier.is_loaded:
-        logger.error("TFLITE MODEL FAILED TO LOAD")
-    else:
-        logger.info("TFLite model initialized successfully")
-except Exception as e:
-    logger.error(f"Failed to initialize TFLite classifier: {e}")
-    classifier = None
+# Global TFLite model instance (tanpa load model)
+classifier = MinangFoodClassifier()

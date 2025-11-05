@@ -2,24 +2,43 @@ import tensorflow as tf
 import numpy as np
 from PIL import Image
 import io
+import logging
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 class MinangFoodClassifier:
     def __init__(self):
-        self.model = None
+        self.interpreter = None
+        self.input_details = None
+        self.output_details = None
+        self.is_loaded = False
         self.load_model()
     
     def load_model(self):
-        """Load the trained model"""
+        """Load TFLite model"""
         try:
-            self.model = tf.keras.models.load_model(settings.MODEL_PATH)
-            print("Model loaded successfully")
+            logger.info(f"Loading TFLite model from: {settings.MODEL_PATH}")
+            
+            # Load TFLite model
+            self.interpreter = tf.lite.Interpreter(model_path=settings.MODEL_PATH)
+            self.interpreter.allocate_tensors()
+            
+            # Get input and output details
+            self.input_details = self.interpreter.get_input_details()
+            self.output_details = self.interpreter.get_output_details()
+            
+            self.is_loaded = True
+            logger.info("TFLite model loaded successfully")
+            logger.info(f"Input details: {self.input_details[0]['shape']}")
+            logger.info(f"Output details: {self.output_details[0]['shape']}")
+            
         except Exception as e:
-            print(f"Error loading model: {e}")
-            raise e
+            logger.error(f"Failed to load TFLite model: {e}")
+            self.is_loaded = False
     
     def preprocess_image(self, image_bytes):
-        """Preprocess image for model prediction"""
+        """Preprocess image for TFLite model"""
         try:
             # Open image
             image = Image.open(io.BytesIO(image_bytes))
@@ -28,11 +47,13 @@ class MinangFoodClassifier:
             if image.mode != 'RGB':
                 image = image.convert('RGB')
             
-            # Resize image
-            image = image.resize(settings.IMAGE_SIZE)
+            # Resize image sesuai input model
+            input_shape = self.input_details[0]['shape']
+            target_size = (input_shape[1], input_shape[2])  # (height, width)
+            image = image.resize(target_size)
             
-            # Convert to array and normalize
-            image_array = np.array(image) / 255.0
+            # Convert to array dan normalize
+            image_array = np.array(image, dtype=np.float32) / 255.0
             
             # Add batch dimension
             image_batch = np.expand_dims(image_array, axis=0)
@@ -40,17 +61,34 @@ class MinangFoodClassifier:
             return image_batch
             
         except Exception as e:
-            print(f"Error preprocessing image: {e}")
+            logger.error(f"Error preprocessing image: {e}")
             raise e
     
     def predict(self, image_bytes):
-        """Make prediction on image"""
+        """Make prediction menggunakan TFLite"""
+        if not self.is_loaded:
+            return {
+                "error": "Model not loaded",
+                "success": False
+            }
+        
         try:
             # Preprocess image
             processed_image = self.preprocess_image(image_bytes)
             
-            # Make prediction
-            predictions = self.model.predict(processed_image)
+            # Set input tensor
+            self.interpreter.set_tensor(
+                self.input_details[0]['index'], 
+                processed_image
+            )
+            
+            # Run inference
+            self.interpreter.invoke()
+            
+            # Get prediction results
+            predictions = self.interpreter.get_tensor(
+                self.output_details[0]['index']
+            )
             
             # Get top prediction
             predicted_class_idx = np.argmax(predictions[0])
@@ -70,14 +108,26 @@ class MinangFoodClassifier:
             ]
             
             return {
+                "success": True,
                 "predicted_class": predicted_class,
                 "confidence": confidence,
                 "all_predictions": top_3_predictions
             }
             
         except Exception as e:
-            print(f"Error during prediction: {e}")
-            raise e
+            logger.error(f"Error during TFLite prediction: {e}")
+            return {
+                "error": str(e),
+                "success": False
+            }
 
-# Global model instance
-classifier = MinangFoodClassifier()
+# Global TFLite model instance
+try:
+    classifier = MinangFoodClassifier()
+    if not classifier.is_loaded:
+        logger.error("TFLITE MODEL FAILED TO LOAD")
+    else:
+        logger.info("TFLite model initialized successfully")
+except Exception as e:
+    logger.error(f"Failed to initialize TFLite classifier: {e}")
+    classifier = None

@@ -2,6 +2,8 @@ from fastapi import FastAPI, File, UploadFile, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 import uvicorn
+import os
+
 
 from app.config import settings
 from app.auth import get_api_key
@@ -121,4 +123,5 @@ async def batch_predict(
         )
 
 if __name__ == "__main__":
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8000, reload=True)
+    port = int(os.environ.get("PORT", 8000))  # Railway pakai $PORT
+    uvicorn.run("app.main:app", host="0.0.0.0", port=port, reload=False)

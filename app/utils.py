@@ -1,24 +1,39 @@
+from fastapi import HTTPException
 from PIL import Image
-import numpy as np
+import io
 
-# Label kelas sesuai dataset
-CLASS_NAMES = [
-    "ayam_goreng",
-    "ayam_pop",
-    "daging_rendang",
-    "dendeng_batokok",
-    "gulai_ikan",
-    "gulai_tambusu",
-    "gulai_tunjang",
-    "telur_balado",
-    "telur_dadar"
-]
-
-IMAGE_SIZE = 224  # sesuai model
-
-def preprocess(image_file):
-    img = Image.open(image_file).convert("RGB")
-    img = img.resize((IMAGE_SIZE, IMAGE_SIZE))
-    img = np.array(img, dtype="float32") / 255.0      
-    img = np.expand_dims(img, axis=0)               
-    return img
+def validate_image(file):
+    """Validate uploaded image file"""
+    try:
+        # Check file size (max 10MB)
+        max_size = 10 * 1024 * 1024  # 10MB
+        file.file.seek(0, 2)  # Seek to end
+        file_size = file.file.tell()
+        file.file.seek(0)  # Reset file pointer
+        
+        if file_size > max_size:
+            raise HTTPException(
+                status_code=400, 
+                detail="File size too large. Maximum size is 10MB."
+            )
+        
+        # Try to open image
+        image = Image.open(io.BytesIO(file.file.read()))
+        file.file.seek(0)  # Reset file pointer
+        
+        # Check if it's a valid image format
+        if image.format not in ['JPEG', 'PNG', 'JPG', 'WEBP']:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid image format. Supported formats: JPEG, PNG, JPG, WEBP"
+            )
+            
+        return True
+        
+    except Exception as e:
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid image file"
+        )

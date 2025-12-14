@@ -8,7 +8,7 @@
 ---
 
 ## 📋 Deskripsi
-Model **MobileNetV3** digunakan untuk klasifikasi gambar makanan khas **Minangkabau** ke dalam **9 kelas** dengan API dibangun menggunakan **FastAPI** dan dideploy di **Railway**.
+Model **MobileNetV3** digunakan untuk klasifikasi gambar makanan khas **Minangkabau** ke dalam **9 kelas** dengan API dibangun menggunakan framework python yaitu **FastAPI** dan dideploy di PaaS yaitu **Railway**.
 
 ---
 
